@@ -2,63 +2,76 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { Contract, ContractInterface } from '@ethersproject/contracts';
 import FakeBAYC from '../../ABIs/FakeBAYC.json';
-
 import { BigNumber } from "@ethersproject/bignumber";
 import { useRouter } from 'next/router';
 import axios from 'redaxios';
+import Menu from '../../components/Menu'
 
 const FakeBAYCAddress = "0x6b740C7a965d75A4801642Fabc650DA92CeA47ef";
-export default function App() {
+const ifpsGateway = 'https://ipfs.io/ipfs';
 
-  const [error, setError] = useState('');
-  const [data, setData] = useState({})
+export default function fakeBaycToken() {
+    const router = useRouter()
+    const { query } = useRouter()
+    const token = query.id
 
-  useEffect(() => {
-    fetchData();
-  }, [])
+    const [error, setError] = useState('');
+    const [asset, setAsset] = useState()
+    const [notFound, setNotFound] = useState(false)
 
-  async function fetchData() {
-    if(typeof window.ethereum !== 'undefined') {
-      
+
+    useEffect(() => {
+        if (token) { fetchData() };
+    }, [token])
+
+    async function fetchData() {
+
         const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const contract = new ethers.Contract(FakeBAYCAddress, FakeBAYC.abi, provider);
-      console.log("Ouoo")
-      try {
-        const symbol = await contract.symbol();
-        const totalSupply = await contract.totalSupply();
-        const object = {"totalSupply": totalSupply.toString(), "symbol": symbol}
-        setData(object);
-      }
-      catch(err) {
-        setError(err.message);
-        console.log(err)
-      }
+        const contract = new Contract(FakeBAYCAddress, FakeBAYC.abi, provider);
+        try {
+
+            const totalSupply = await contract.totalSupply()
+            if (token > totalSupply) {
+                setNotFound(true)
+                return
+            }
+
+            const uri = await contract.tokenURI((token));
+
+            const { data } = await axios.get(uri);
+
+            const imgCID = data.image.replace('ipfs://', '');
+            const image = `${ifpsGateway}/${imgCID}`;
+            console.log(data)
+            setAsset({
+                "image": image,
+                "attributes": data.attributes
+            });
+
+        }
+        catch (err) {
+            setError(err.message);
+            console.log(err)
+        }
     }
-  }
 
-  async function mint() {
-    if(typeof window.ethereum !== 'undefined') {
-      let accounts = await window.ethereum.request({method: 'eth_requestAccounts'});
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const contract = new ethers.Contract(FakeBAYCAddress, FakeBAYC.abi, signer);
+    if (notFound) return <><Menu/>Not Found</>
+    if (!asset) return <><Menu/>Pls Wait</>
+    return (
+        <>
+        <Menu/>
+            <img src={asset.image}></img>
+            <div>
+                {
+                    asset.attributes.map((attribut, i) => {
+                        return (<p key={i}>
+                            <span>Key Name: {attribut.trait_type}</span>
+                            <span>, Value: {attribut.value}</span>
+                        </p>)
+                    })
+                }
+            </div>
 
-      const transaction = await contract.claimAToken();
-      await transaction.wait();
-      fetchData();
-
-    }
-  }
-
-  return (
-    <div className="App">
-      <div className="container">
-        <div className="banniere">
-        <h1>Mint a {data.symbol} NFT !</h1>
-        <p className="count">{data.totalSupply}</p>
-        <button onClick={mint}>BUY one fakeBayc NFT</button>
-        </div>
-      </div>
-    </div>
-  );
+        </>
+    )
 }
