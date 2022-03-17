@@ -22,6 +22,9 @@ export default function Menu() {
         <button type="button" onClick={() => router.push('/nefturians/1')}>
         nefturians/1
         </button>
+        <button type="button" onClick={() => router.push('/fakeMeebits')}>
+        FakeMeebits
+        </button>
     </li>
   )
 }
